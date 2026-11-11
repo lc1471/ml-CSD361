@@ -37,3 +37,29 @@ def video_windows(frames, src_fps=SRC_FPS, out_fps=OUT_FPS, win=WIN_FRAMES):
     sub = frames[:: max(1, round(src_fps / out_fps))]
     n = len(sub) // win
     return sub[: n * win].reshape(n, win, SIZE, SIZE, 3)
+
+TOL = 4  # max distance (source frames, 0.25 s at 16 fps) to accept a crop for a target frame
+
+
+def video_windows_by_time(idxs, frames, n_windows, src_fps=SRC_FPS, out_fps=OUT_FPS, win=WIN_FRAMES, tol=TOL):
+    """Pick crops by TIME so gaps in the crop sequence cannot shift later frames.
+    Window k covers k*2 s .. (k+1)*2 s; its j-th frame is the crop nearest to source index
+    (k*win + j) * (src_fps / out_fps). A target frame with no crop within `tol` source frames
+    is left black and counted as invalid.
+    Returns video (n,win,112,112,3) uint8 and valid_frac (n,) float."""
+    step = src_fps / out_fps
+    video = np.zeros((n_windows, win, SIZE, SIZE, 3), np.uint8)
+    valid = np.zeros((n_windows, win), bool)
+    if len(idxs) == 0:
+        return video, valid.mean(axis=1)
+    idx = np.asarray(idxs)
+    for k in range(n_windows):
+        for j in range(win):
+            target = (k * win + j) * step
+            pos = np.searchsorted(idx, target)
+            cands = [p for p in (pos - 1, pos) if 0 <= p < len(idx)]
+            best = min(cands, key=lambda p: abs(idx[p] - target))
+            if abs(idx[best] - target) <= tol:
+                video[k, j] = frames[best]
+                valid[k, j] = True
+    return video, valid.mean(axis=1)
