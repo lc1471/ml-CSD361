@@ -7,3 +7,9 @@ third_party/
 *.pt
 *.pth
 .ipynb_checkpoints/
+
+# Local backups and environments
+*.bak
+requirements-current-backup.txt
+.avcaffe/
+avcaffe/
